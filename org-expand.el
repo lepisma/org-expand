@@ -30,6 +30,7 @@
 ;;; Code:
 
 (require 'enlive)
+(require 'json)
 (require 'org)
 (require 'request)
 (require 's)
@@ -60,11 +61,27 @@ other entries, or string in it as items.")
 (defmethod org-expand-write-entry ((entry org-expand-entry) &optional point)
   "Write the given entry at given point.")
 
+(defmethod org-expand-discography ((entry org-expand-entry))
+  "Return tracklist for given artist, album")
+
 (defmethod org-expand-wikipedia ((entry org-expand-entry))
   "Return wikipedia intro paragraph.")
 
-(defmethod org-expand-discography ((entry org-expand-entry))
-  "Return tracklist for given artist, album")
+(defun org-expand-get-wikipedia-summary (term callback)
+  "Search wikipedia for given term"
+  (request
+   "https://en.wikipedia.org/w/api.php"
+   :params `(("format" . "json")
+             ("action" . "query")
+             ("prop" . "extracts")
+             ("redirects" . "1")
+             ("titles" . ,term)
+             ("explaintext" . "1")
+             ("exintro" . "1"))
+   :parser 'json-read
+   :success (cl-function
+             (lambda (&key data &allow-other-keys)
+               (funcall callback (cdr (assoc 'extract (cadr (assoc 'pages (assoc 'query data))))))))))
 
 (defmethod org-expand-youtube-url ((entry org-expand-entry))
   "Return entry with youtube-url set as a property.")
@@ -83,7 +100,7 @@ other entries, or string in it as items.")
   "Search youtube for given term"
   (request
    "https://youtube.com/results"
-   :params `(("search_query" ,term))
+   :params `(("search_query" . ,term))
    :parser 'buffer-string
    :success (cl-function
              (lambda (&key data &allow-other-keys)
