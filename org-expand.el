@@ -31,6 +31,7 @@
 
 (require 'enlive)
 (require 'org)
+(require 'request)
 (require 's)
 
 (defgroup org-expand nil
@@ -68,9 +69,32 @@ other entries, or string in it as items.")
 (defmethod org-expand-youtube-url ((entry org-expand-entry))
   "Return entry with youtube-url set as a property.")
 
+(defun org-expand--parse-youtube-search-output (output)
+  "Parse web search result to get valid youtube links"
+  (with-temp-buffer
+    (insert output)
+    (goto-char (point-min))
+    (let ((results '()))
+      (while (search-forward "watch?v=" nil t)
+        (push (buffer-substring-no-properties (point) (+ 11 (point))) results))
+      (mapcar (lambda (id) (concat "https://youtube.com/watch?v=" id)) (reverse results)))))
+
+(defun org-expand-get-youtube-url (term callback)
+  "Search youtube for given term"
+  (interactive "sSearch term: ")
+  (request
+   "https://youtube.com/results"
+   :params `(("search_query" ,term))
+   :parser 'buffer-string
+   :success (cl-function
+             (lambda (&key data &allow-other-keys)
+               (let ((links (org-expand--parse-youtube-search-output data)))
+                 (funcall callback (car links)))))))
+
+
 ;;;###autoload
-(defun org-expand ()
-  "Run org expand")
+(defun org-expand-replace ()
+  "Run org expand on current entry and replace it with expanded one")
 
 (provide 'org-expand)
 ;;; org-expand.el ends here
