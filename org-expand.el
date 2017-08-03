@@ -61,9 +61,6 @@ other entries, or string in it as items.")
 (defmethod org-expand-write-entry ((entry org-expand-entry) &optional point)
   "Write the given entry at given point.")
 
-(defmethod org-expand-discography ((entry org-expand-entry))
-  "Return tracklist for given artist, album")
-
 (defmethod org-expand-wikipedia ((entry org-expand-entry))
   "Return wikipedia intro paragraph.")
 
