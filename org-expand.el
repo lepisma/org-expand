@@ -81,7 +81,6 @@ other entries, or string in it as items.")
 
 (defun org-expand-get-youtube-url (term callback)
   "Search youtube for given term"
-  (interactive "sSearch term: ")
   (request
    "https://youtube.com/results"
    :params `(("search_query" ,term))
@@ -90,7 +89,6 @@ other entries, or string in it as items.")
              (lambda (&key data &allow-other-keys)
                (let ((links (org-expand--parse-youtube-search-output data)))
                  (funcall callback (car links)))))))
-
 
 ;;;###autoload
 (defun org-expand-replace ()
