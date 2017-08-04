@@ -4,7 +4,7 @@
 
 ;; Author: Abhinav Tushar <abhinav.tushar.vs@gmail.com>
 ;; Version: 0.1.4
-;; Package-Requires: ((enlive "0.0.1") (s "1.11.0"))
+;; Package-Requires: ((request "0.3.0") (helm "2.8.1") (enlive "0.0.1") (s "1.11.0"))
 ;; URL: https://github.com/lepisma/org-expand
 
 ;;; Commentary:
@@ -29,6 +29,7 @@
 
 ;;; Code:
 
+(require 'helm)
 (require 'enlive)
 (require 'json)
 (require 'org)
@@ -39,9 +40,6 @@
   "Org expand"
   :group 'org)
 
-(defun org-expand-read-entry (&optional point)
-  "Read the org entry at given point and return an object.")
-
 (defclass org-expand-entry ()
   ((title :initarg :title
           :initform ""
@@ -49,20 +47,39 @@
           :documentation "Entry header")
    (body :initarg :body
          :initform ""
-         :documentation "Body of entry. This can be a list which can then have
-other entries, or string in it as items.")
+         :documentation "Body text of entry")
    (tags :initarg :tags
-         :type cons
          :documentation "List of tags applied to the item")
    (props :initarg :props
-          :type cons))
+          :documentation "Properties for the entry"))
   "An org entry")
 
-(defmethod org-expand-write-entry ((entry org-expand-entry) &optional point)
-  "Write the given entry at given point.")
+(defun org-expand--get-entry-body ()
+  "Return plain body text for org entry at current point."
+  (let ((prop-bounds (org-get-property-block))
+        (entry-text (substring-no-properties (org-get-entry))))
+    (string-trim
+     (if prop-bounds
+         (substring entry-text (+ 19 (- (cdr prop-bounds) (car prop-bounds))))
+       entry-text))))
 
-(defmethod org-expand-wikipedia ((entry org-expand-entry))
-  "Return wikipedia intro paragraph.")
+(defun org-expand-read-entry ()
+  "Read the org entry at current point and return an object."
+  (make-instance 'org-expand-entry
+                 :title (substring-no-properties (org-get-heading t t))
+                 :props (org-entry-properties)
+                 :tags (org-get-tags-at)
+                 :body (org-expand--get-entry-body)))
+
+(defmethod org-expand-wikipedia-summary ((entry org-expand-entry) pos)
+  "Return wikipedia intro paragraph."
+  (org-expand-get-wikipedia-summary
+   (slot-value entry :title)
+   (lambda (summary)
+     (save-excursion
+       (goto-char pos)
+       (insert summary)
+       (fill-paragraph)))))
 
 (defun org-expand-get-wikipedia-summary (term callback)
   "Search wikipedia for given term"
@@ -80,8 +97,14 @@ other entries, or string in it as items.")
              (lambda (&key data &allow-other-keys)
                (funcall callback (cdr (assoc 'extract (cadr (assoc 'pages (assoc 'query data))))))))))
 
-(defmethod org-expand-youtube-url ((entry org-expand-entry))
-  "Return entry with youtube-url set as a property.")
+(defmethod org-expand-youtube-url ((entry org-expand-entry) pos)
+  "Return entry with youtube-url set as a property."
+  (org-expand-get-youtube-url
+   (slot-value entry :title)
+   (lambda (url)
+     (save-excursion
+       (goto-char pos)
+       (org-set-property "youtube" url)))))
 
 (defun org-expand--parse-youtube-search-output (output)
   "Parse web search result to get valid youtube links"
@@ -104,9 +127,21 @@ other entries, or string in it as items.")
                (let ((links (org-expand--parse-youtube-search-output data)))
                  (funcall callback (car links)))))))
 
+(defun org-expand (source-func)
+  "Run expand at point using given source-function"
+  (funcall source-func (org-expand-read-entry) (point)))
+
 ;;;###autoload
-(defun org-expand-replace ()
-  "Run org expand on current entry and replace it with expanded one")
+(defun helm-org-expand ()
+  "Run helm for selecting org-expand sources"
+  (interactive)
+  (helm :sources (helm-build-sync-source "org-expand sources"
+                   :candidates '("youtube-url" "wikipedia-summary")
+                   :action '(("Run org-expand" . (lambda (candidate)
+                                                   (org-expand
+                                                    (intern-soft (concat "org-expand-" candidate)))))))
+        :buffer "*helm org-expand*"
+        :prompt "Select source: "))
 
 (provide 'org-expand)
 ;;; org-expand.el ends here

@@ -2,6 +2,7 @@
 
 (package-file "org-expand.el")
 
+(depends-on "helm")
 (depends-on "enlive")
 (depends-on "request")
 (depends-on "s")
